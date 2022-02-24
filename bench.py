@@ -7,8 +7,10 @@ from collections import defaultdict
 from sklearn.model_selection import train_test_split
 from sklearn.model_selection import cross_validate
 from sklearn.model_selection import KFold
+from sklearn.model_selection import RandomizedSearchCV
+from scipy.stats import uniform as sp_rand
+from scipy.stats import loguniform
 from sklearn.preprocessing import StandardScaler
-from sklearn.datasets import make_moons, make_circles, make_classification
 from sklearn.neural_network import MLPClassifier
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.svm import SVC
@@ -21,7 +23,19 @@ from sklearn.discriminant_analysis import QuadraticDiscriminantAnalysis
 from sklearn.metrics import make_scorer
 from sklearn.metrics import roc_auc_score, accuracy_score, precision_score, recall_score, f1_score
 from exception import ArgumentException
-#pd.set_option('display.max_columns', None)
+
+class loguniform_int:
+    """Integer valued version of the log-uniform distribution"""
+    def __init__(self, a, b):
+        self._distribution = loguniform(a, b)
+
+    def rvs(self, *args, **kwargs):
+        """Random variable sample"""
+        return self._distribution.rvs(*args, **kwargs).astype(int)
+
+pdist = dict()
+pdist['Nearest Neighbors'] = {'n_neighbors': loguniform_int(1,100), 'weights': ['uniform', 'distance'], 'algorithm': ['auto', 'ball_tree', 'kd_tree', 'brute'], 'leaf_size': loguniform_int(1,100), 'p': [1,2]}
+pdist['Linear SVM'] = {'C': loguniform(1,100), 'kernel': ['linear', 'poly', 'rbf', 'sigmoid'], 'degree': loguniform_int(1,10), 'gamma': ['scale', 'auto'], 'coef0': loguniform(1,100), 'shrinking': [True, False], 'tol': loguniform(1e-3, 0), 'decision_function_shape': ['ovo', 'ovr']}
 
 def compare_classifiers():
     names = [
@@ -29,12 +43,12 @@ def compare_classifiers():
         "Linear SVM",
         #"RBF SVM",
         #"Gaussian Process",
-        "Decision Tree",
-        "Random Forest",
-        "Neural Net",
-        "AdaBoost",
-        "Naive Bayes",
-        "QDA"
+        #"Decision Tree",
+        #"Random Forest",
+        #"Neural Net",
+        #"AdaBoost",
+        #"Naive Bayes",
+        #"QDA"
     ]
 
     classifiers = [
@@ -42,12 +56,12 @@ def compare_classifiers():
         SVC(kernel="linear", C=0.025),
         #SVC(gamma=2, C=1),
         #GaussianProcessClassifier(1.0 * RBF(1.0)),
-        DecisionTreeClassifier(max_depth=5),
-        RandomForestClassifier(max_depth=5, n_estimators=10, max_features=1),
-        MLPClassifier(alpha=1, max_iter=1000),
-        AdaBoostClassifier(),
-        GaussianNB(),
-        QuadraticDiscriminantAnalysis(),
+        #DecisionTreeClassifier(max_depth=5),
+        #RandomForestClassifier(max_depth=5, n_estimators=10, max_features=1),
+        #MLPClassifier(alpha=1, max_iter=1000),
+        #AdaBoostClassifier(),
+        #GaussianNB(),
+        #QuadraticDiscriminantAnalysis(),
     ]
 
     scoring = {
@@ -68,6 +82,8 @@ def compare_classifiers():
     X = array[:,0:8]
     Y = array[:,8]
 
+    X = StandardScaler().fit_transform(X)
+
     dict_scores = defaultdict(list)
     for name, clf in zip(names, classifiers):
         print(f'Estimating {name} performance...')
@@ -82,21 +98,42 @@ def compare_classifiers():
     table_scores.insert(0, 'Classifiers', pd.Series(names, index=table_scores.index))
     print(table_scores)
     sort_df(table_scores)
+    try:
+        clf = input("Parameters tuning. Enter classifier:\n>>> ")
+    except KeyboardInterrupt:
+        sys.exit(0)
+    try:
+        metric = input("Enter metric:\n>>> ")
+    except KeyboardInterrupt:
+        sys.exit(0)
+    fine_tune(clf, metric)
 
 def sort_df(df):
     def read():
         try:
-            sort_metric = input("Enter metric to order classifiers [p to proceed, Ctrl+c to exit]: ")
+            sort_metric = input("Enter metric to order classifiers. [p] proceed to finetune, [Ctrl+c] to exit]:\n>>> ")
         except KeyboardInterrupt:
             sys.exit(0)
         return sort_metric
 
-    while read() != 'p':
+    metric = read()
+    while metric.strip() != 'p':
         try:
-            df.sort_values(by=sort_metric, ascending=False)
+            df.sort_values(by=metric, inplace=True, ascending=True)
             print(df)
+            print()
         except KeyError:
-            print('Unknown metric')
+            print(f'Unknown metric. Choose from {list(df.columns)}')
+        metric = read()
+
+def fine_tune(clf, scoring):
+    model_random_search = RandomizedSearchCV(clf,
+                                             param_distributions=pdist[clf],
+                                             n_iter=10,
+                                             cv=5,
+                                             scoring=scoring,
+                                             verbose=1)
+
 
 if __name__ == '__main__':
     #if sys.argv != 2:
