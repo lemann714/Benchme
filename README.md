@@ -11,3 +11,13 @@ git clone https://github.com/lemann714/Benchme.git
 ```
 Then ```cd``` into the root directory of the project.
 
+You now can run benchmarking by typing in your shell ```./bench.py FILENAME```, where FILENAME is a source file of csv format.
+
+positional arguments:
+  source                CSV-data
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --target TARGET, -t TARGET
+                        Index of target column
+  --sep SEP, -s SEP     Columns separator symbol
