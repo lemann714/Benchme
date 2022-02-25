@@ -4,11 +4,11 @@ import sys
 import numpy as np
 import pandas as pd
 from collections import defaultdict
+from pathlib import Path
 from sklearn.model_selection import train_test_split
 from sklearn.model_selection import cross_validate
 from sklearn.model_selection import KFold
 from sklearn.model_selection import RandomizedSearchCV
-from scipy.stats import loguniform
 from sklearn.preprocessing import StandardScaler
 from sklearn.neural_network import MLPClassifier
 from sklearn.neighbors import KNeighborsClassifier
@@ -21,22 +21,10 @@ from sklearn.naive_bayes import GaussianNB
 from sklearn.discriminant_analysis import QuadraticDiscriminantAnalysis
 from sklearn.metrics import make_scorer
 from sklearn.metrics import roc_auc_score, accuracy_score, precision_score, recall_score, f1_score
+from argparse import ArgumentParser
 from exception import ArgumentException
+from settings import pdist
 from pprint import pprint
-
-class loguniform_int:
-    """Integer valued version of the log-uniform distribution"""
-    def __init__(self, a, b):
-        self._distribution = loguniform(a, b)
-
-    def rvs(self, *args, **kwargs):
-        """Random variable sample"""
-        return self._distribution.rvs(*args, **kwargs).astype(int)
-
-pdist = dict()
-pdist['nearest neighbors'] = {'n_neighbors': loguniform_int(1,100), 'weights': ['uniform', 'distance'], 'algorithm': ['auto', 'ball_tree', 'kd_tree', 'brute'], 'leaf_size': loguniform_int(1,100), 'p': [1,2]}
-pdist['linear svm'] = {'C': loguniform(1,100), 'kernel': ['linear', 'poly', 'rbf', 'sigmoid'], 'degree': loguniform_int(1,10), 'gamma': ['scale', 'auto'], 'coef0': loguniform(1,100), 'shrinking': [True, False], 'tol': loguniform(1e-3, 1e-1), 'decision_function_shape': ['ovo', 'ovr']}
-pdist['random forest'] = {'bootstrap': [True, False], 'ccp_alpha': loguniform(0.0, 10.0),'class_weight': ['balanced', 'balanced_subsample'], 'criterion': ['gini', 'entropy'], 'max_features': ['auto', 'sqrt', 'log2'], 'min_impurity_decrease': loguniform(0.0, 10.0), 'min_samples_leaf': loguniform_int(1, 10), 'min_samples_split': loguniform_int(1, 10), 'min_weight_fraction_leaf': loguniform(0.0, 10.0), 'n_estimators': loguniform_int(10,100), 'warm_start': [True, False]}
 
 names = [
     "Nearest Neighbors",
@@ -47,7 +35,7 @@ names = [
     #"Decision Tree",
     #"Neural Net",
     #"AdaBoost",
-    #"Naive Bayes",
+    "Naive Bayes",
     #"QDA"
 ]
 
@@ -60,28 +48,30 @@ classifiers = [
     #DecisionTreeClassifier(max_depth=5),
     #MLPClassifier(alpha=1, max_iter=1000),
     #AdaBoostClassifier(),
-    #GaussianNB(),
+    GaussianNB(),
     #QuadraticDiscriminantAnalysis(),
 ]
+scoring = {
+           'accuracy': make_scorer(accuracy_score),
+           'precision': make_scorer(precision_score),
+           'recall': make_scorer(recall_score),
+           'f1': make_scorer(f1_score),
+           'roc_auc': make_scorer(roc_auc_score)
+          }
 
-def compare_classifiers():
-    scoring = {
-               'accuracy':make_scorer(accuracy_score),
-               'precision':make_scorer(precision_score),
-               'recall':make_scorer(recall_score),
-               'f1_score':make_scorer(f1_score),
-               'roc_auc': make_scorer(roc_auc_score)
-              }
-
-    # seed ensures that each classifier (clf) cross-validated in the same way
+def compare_classifiers(src: Path, target_index: int, sep: str) -> None:
+    dataframe = pd.read_csv(src, sep=sep)#header=None, sep=sep)
+    Y = dataframe.iloc[:, target_index].values
+    X = dataframe.drop(dataframe.columns[target_index], axis=1).values
+    #seed ensures that each classifier (clf) cross-validated in the same way
     cv_seed = 2022
 
-    url = "https://raw.githubusercontent.com/jbrownlee/Datasets/master/pima-indians-diabetes.data.csv"
-    col_names = ['preg', 'plas', 'pres', 'skin', 'test', 'mass', 'pedi', 'age', 'class']
-    dataframe = pd.read_csv(url, names=col_names)
-    array = dataframe.values
-    X = array[:,0:8]
-    Y = array[:,8]
+    #url = "https://raw.githubusercontent.com/jbrownlee/Datasets/master/pima-indians-diabetes.data.csv"
+    #col_names = ['preg', 'plas', 'pres', 'skin', 'test', 'mass', 'pedi', 'age', 'class']
+    #dataframe = pd.read_csv(url, names=col_names)
+    #array = dataframe.values
+    #X = array[:,0:8]
+    #Y = array[:,8]
 
     X = StandardScaler().fit_transform(X)
 
@@ -99,13 +89,9 @@ def compare_classifiers():
     table_scores.insert(0, 'Classifiers', pd.Series(names, index=table_scores.index))
     print(table_scores)
     sort_df(table_scores)
-    #try:
-    #    clf = input("Parameters tuning. Enter classifier:\n>>> ")
-    #except KeyboardInterrupt:
-    #    sys.exit(0)
-    find_optimal_model(data)
+    find_optimal_model(X, Y)
 
-def find_optimal_model(data):
+def find_optimal_model(data, target):
     metric = None
     avmetrics = list(scoring.keys())
     while metric not in avmetrics:
@@ -113,31 +99,43 @@ def find_optimal_model(data):
             metric = input(f"Choose metric from {avmetrics}. Press [Ctrl+c] to exit\n>>> ").strip()
         except KeyboardInterrupt:
             sys.exit(0)
+    data_train, data_test, target_train, target_test = train_test_split(data, target, random_state=42)
     best_score = 0.0
     best_params = None
     best_model = None
     index = None
     for i, clf in enumerate(classifiers):
-        clf = classifiers[names.index(clf_name)]
         model_random_search = RandomizedSearchCV(clf,
-                                                 param_distributions=pdist[clf_name.strip().lower()],
+                                                 param_distributions=pdist[names[i].strip().lower()],
                                                  n_iter=10,
                                                  cv=5,
-                                                 scoring=scoring,
+                                                 scoring=metric,
                                                  verbose=1)
-        data_train, data_test, target_train, target_test = train_test_split(
-                                                 data, target, random_state=42)
         model_random_search.fit(data_train, target_train)
         score = model_random_search.score(data_test, target_test)
         print(f"The test {metric} score of the best {names[i].upper()} model is {score:.2f}")
         if score > best_score:
             best_score = score
-            best_model = names[i]
+            best_model = names[i].lower()
             best_params = model_random_search.best_params_
             index = i
-    print(f'Best model: {best_model}')
-    print('Best parameters:')
+    print()
+    print(f'Best model is {best_model.upper()}\n')
+    # get the parameter names
+    column_results = [f"param_{p}" for p in pdist[best_model].keys()]
+    column_results += ["mean_test_score", "std_test_score", "rank_test_score"]
+    cv_results = pd.DataFrame(model_random_search.cv_results_)
+    cv_results = cv_results[column_results].sort_values("mean_test_score", ascending=False)
+    cv_results = cv_results.rename(shorten_param, axis=1)
+    cv_results = cv_results.set_index("rank_test_score")
+    print(cv_results+'\n')
+    print('Best parameters are:')
     pprint(best_params)
+
+def shorten_param(param_name):
+    if "__" in param_name:
+        return param_name.rsplit("__", 1)[1]
+    return param_name
 
 def sort_df(df):
     def read():
@@ -156,24 +154,18 @@ def sort_df(df):
         except KeyError:
             print(f'Wrong column name. Choose from {list(df.columns)}')
         scol = read()
-'''
-def fine_tune(data, target, clf_name, scoring):
-    clf = classifiers[names.index(clf_name)]
-    model_random_search = RandomizedSearchCV(clf,
-                                             param_distributions=pdist[clf_name.strip().lower()],
-                                             n_iter=10,
-                                             cv=5,
-                                             scoring=scoring,
-                                             verbose=1)
-    data_train, data_test, target_train, target_test = train_test_split(
-                                             data, target, random_state=42)
-    model_random_search.fit(data_train, target_train)
-    accuracy = model_random_search.score(data_test, target_test)
-    print(f"The test accuracy score of the best model is {accuracy:.2f}")
-'''
+
+########################### argparser functionality part ###############################
+cli = ArgumentParser(description='Performs benchmarking of binary classifiers on particular data')
+cli.add_argument('source', type=str, help='CSV-data')
+cli.add_argument('--target', '-t', type=int, default=-1, help="Index of target column")
+cli.add_argument('--sep', '-s', type=str, default=',', help="Columns separator symbol")
+
 if __name__ == '__main__':
-    #if sys.argv != 2:
-    #    raise ArgumentException("Source file must be given as an argument")
-    #source = sys.argv[1]
-    compare_classifiers()
+    args = cli.parse_args()
+    dags = vars(args)
+    src = Path(dags['source'])
+    tix = dags['target']
+    sep = dags['sep']
+    compare_classifiers(src, tix, sep)
 
