@@ -8,7 +8,6 @@ from sklearn.model_selection import train_test_split
 from sklearn.model_selection import cross_validate
 from sklearn.model_selection import KFold
 from sklearn.model_selection import RandomizedSearchCV
-from scipy.stats import uniform as sp_rand
 from scipy.stats import loguniform
 from sklearn.preprocessing import StandardScaler
 from sklearn.neural_network import MLPClassifier
@@ -34,36 +33,37 @@ class loguniform_int:
         return self._distribution.rvs(*args, **kwargs).astype(int)
 
 pdist = dict()
-pdist['Nearest Neighbors'] = {'n_neighbors': loguniform_int(1,100), 'weights': ['uniform', 'distance'], 'algorithm': ['auto', 'ball_tree', 'kd_tree', 'brute'], 'leaf_size': loguniform_int(1,100), 'p': [1,2]}
-pdist['Linear SVM'] = {'C': loguniform(1,100), 'kernel': ['linear', 'poly', 'rbf', 'sigmoid'], 'degree': loguniform_int(1,10), 'gamma': ['scale', 'auto'], 'coef0': loguniform(1,100), 'shrinking': [True, False], 'tol': loguniform(1e-3, 0), 'decision_function_shape': ['ovo', 'ovr']}
+pdist['nearest neighbors'] = {'n_neighbors': loguniform_int(1,100), 'weights': ['uniform', 'distance'], 'algorithm': ['auto', 'ball_tree', 'kd_tree', 'brute'], 'leaf_size': loguniform_int(1,100), 'p': [1,2]}
+pdist['linear svm'] = {'C': loguniform(1,100), 'kernel': ['linear', 'poly', 'rbf', 'sigmoid'], 'degree': loguniform_int(1,10), 'gamma': ['scale', 'auto'], 'coef0': loguniform(1,100), 'shrinking': [True, False], 'tol': loguniform(1e-3, 1e-1), 'decision_function_shape': ['ovo', 'ovr']}
+pdist['random forest'] = {'bootstrap': [True, False], 'ccp_alpha': loguniform(0.0, 10.0),'class_weight': ['balanced', 'balanced_subsample'], 'criterion': ['gini', 'entropy'], 'max_features': ['auto', 'sqrt', 'log2'], 'min_impurity_decrease': loguniform(0.0, 10.0), 'min_samples_leaf': loguniform_int(1, 10), 'min_samples_split': loguniform_int(1, 10), 'min_weight_fraction_leaf': loguniform(0.0, 10.0), 'n_estimators': loguniform_int(10,100), 'warm_start': [True, False]}
+
+names = [
+    "Nearest Neighbors",
+    "Linear SVM",
+    "Random Forest",
+    #"RBF SVM",
+    #"Gaussian Process",
+    #"Decision Tree",
+    #"Neural Net",
+    #"AdaBoost",
+    #"Naive Bayes",
+    #"QDA"
+]
+
+classifiers = [
+    KNeighborsClassifier(3),
+    SVC(kernel="linear", C=0.025),
+    RandomForestClassifier(max_depth=5, n_estimators=10, max_features=1),
+    #SVC(gamma=2, C=1),
+    #GaussianProcessClassifier(1.0 * RBF(1.0)),
+    #DecisionTreeClassifier(max_depth=5),
+    #MLPClassifier(alpha=1, max_iter=1000),
+    #AdaBoostClassifier(),
+    #GaussianNB(),
+    #QuadraticDiscriminantAnalysis(),
+]
 
 def compare_classifiers():
-    names = [
-        "Nearest Neighbors",
-        "Linear SVM",
-        #"RBF SVM",
-        #"Gaussian Process",
-        #"Decision Tree",
-        #"Random Forest",
-        #"Neural Net",
-        #"AdaBoost",
-        #"Naive Bayes",
-        #"QDA"
-    ]
-
-    classifiers = [
-        KNeighborsClassifier(3),
-        SVC(kernel="linear", C=0.025),
-        #SVC(gamma=2, C=1),
-        #GaussianProcessClassifier(1.0 * RBF(1.0)),
-        #DecisionTreeClassifier(max_depth=5),
-        #RandomForestClassifier(max_depth=5, n_estimators=10, max_features=1),
-        #MLPClassifier(alpha=1, max_iter=1000),
-        #AdaBoostClassifier(),
-        #GaussianNB(),
-        #QuadraticDiscriminantAnalysis(),
-    ]
-
     scoring = {
                'accuracy':make_scorer(accuracy_score),
                'precision':make_scorer(precision_score),
@@ -98,20 +98,41 @@ def compare_classifiers():
     table_scores.insert(0, 'Classifiers', pd.Series(names, index=table_scores.index))
     print(table_scores)
     sort_df(table_scores)
-    try:
-        clf = input("Parameters tuning. Enter classifier:\n>>> ")
-    except KeyboardInterrupt:
-        sys.exit(0)
-    try:
-        metric = input("Enter metric:\n>>> ")
-    except KeyboardInterrupt:
-        sys.exit(0)
-    fine_tune(clf, metric)
+    #try:
+    #    clf = input("Parameters tuning. Enter classifier:\n>>> ")
+    #except KeyboardInterrupt:
+    #    sys.exit(0)
+    find_optimal_model(data)
+
+def find_optimal_model(data):
+    metric = None
+    avmetrics = list(scoring.keys())
+    while metric not in avmetrics:
+        try:
+            metric = input(f"Choose metric from {avmetrics}. Press [Ctrl+c] to exit\n>>> ").strip()
+        except KeyboardInterrupt:
+            sys.exit(0)
+    best_score = 0.0
+    best_params = None
+    best_model = None
+    for i, clf in enumerate(classifiers):
+        clf = classifiers[names.index(clf_name)]
+        model_random_search = RandomizedSearchCV(clf,
+                                                 param_distributions=pdist[clf_name.strip().lower()],
+                                                 n_iter=10,
+                                                 cv=5,
+                                                 scoring=scoring,
+                                                 verbose=1)
+        data_train, data_test, target_train, target_test = train_test_split(
+                                                 data, target, random_state=42)
+        model_random_search.fit(data_train, target_train)
+        accuracy = model_random_search.score(data_test, target_test)
+        print(f"The test {metric} score of the best {names[i].upper()} model is {metric:.2f}")
 
 def sort_df(df):
     def read():
         try:
-            sort_metric = input("Enter metric to order classifiers. [p] proceed to finetune, [Ctrl+c] to exit]:\n>>> ")
+            sort_metric = input("Enter column to order classifiers. Press [p] to optimal model search, [Ctrl+c] to exit:\n>>> ")
         except KeyboardInterrupt:
             sys.exit(0)
         return sort_metric
@@ -123,18 +144,23 @@ def sort_df(df):
             print(df)
             print()
         except KeyError:
-            print(f'Unknown metric. Choose from {list(df.columns)}')
+            print(f'Wrong column name. Choose from {list(df.columns)}')
         metric = read()
-
-def fine_tune(clf, scoring):
+'''
+def fine_tune(data, target, clf_name, scoring):
+    clf = classifiers[names.index(clf_name)]
     model_random_search = RandomizedSearchCV(clf,
-                                             param_distributions=pdist[clf],
+                                             param_distributions=pdist[clf_name.strip().lower()],
                                              n_iter=10,
                                              cv=5,
                                              scoring=scoring,
                                              verbose=1)
-
-
+    data_train, data_test, target_train, target_test = train_test_split(
+                                             data, target, random_state=42)
+    model_random_search.fit(data_train, target_train)
+    accuracy = model_random_search.score(data_test, target_test)
+    print(f"The test accuracy score of the best model is {accuracy:.2f}")
+'''
 if __name__ == '__main__':
     #if sys.argv != 2:
     #    raise ArgumentException("Source file must be given as an argument")
