@@ -22,6 +22,7 @@ from sklearn.discriminant_analysis import QuadraticDiscriminantAnalysis
 from sklearn.metrics import make_scorer
 from sklearn.metrics import roc_auc_score, accuracy_score, precision_score, recall_score, f1_score
 from exception import ArgumentException
+from pprint import pprint
 
 class loguniform_int:
     """Integer valued version of the log-uniform distribution"""
@@ -115,6 +116,7 @@ def find_optimal_model(data):
     best_score = 0.0
     best_params = None
     best_model = None
+    index = None
     for i, clf in enumerate(classifiers):
         clf = classifiers[names.index(clf_name)]
         model_random_search = RandomizedSearchCV(clf,
@@ -126,26 +128,34 @@ def find_optimal_model(data):
         data_train, data_test, target_train, target_test = train_test_split(
                                                  data, target, random_state=42)
         model_random_search.fit(data_train, target_train)
-        accuracy = model_random_search.score(data_test, target_test)
-        print(f"The test {metric} score of the best {names[i].upper()} model is {metric:.2f}")
+        score = model_random_search.score(data_test, target_test)
+        print(f"The test {metric} score of the best {names[i].upper()} model is {score:.2f}")
+        if score > best_score:
+            best_score = score
+            best_model = names[i]
+            best_params = model_random_search.best_params_
+            index = i
+    print(f'Best model: {best_model}')
+    print('Best parameters:')
+    pprint(best_params)
 
 def sort_df(df):
     def read():
         try:
-            sort_metric = input("Enter column to order classifiers. Press [p] to optimal model search, [Ctrl+c] to exit:\n>>> ")
+            sort_column = input("Enter column name to order classifiers. Press [p] to optimal model search, [Ctrl+c] to exit:\n>>> ")
         except KeyboardInterrupt:
             sys.exit(0)
-        return sort_metric
+        return sort_column
 
-    metric = read()
-    while metric.strip() != 'p':
+    scol = read()
+    while scol.strip() != 'p':
         try:
-            df.sort_values(by=metric, inplace=True, ascending=True)
+            df.sort_values(by=scol, inplace=True, ascending=True)
             print(df)
             print()
         except KeyError:
             print(f'Wrong column name. Choose from {list(df.columns)}')
-        metric = read()
+        scol = read()
 '''
 def fine_tune(data, target, clf_name, scoring):
     clf = classifiers[names.index(clf_name)]
