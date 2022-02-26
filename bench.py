@@ -27,28 +27,28 @@ from settings import pdist
 from pprint import pprint
 
 NAMES = [
-    "Nearest Neighbors",
-    "Linear SVM",
+    #"Nearest Neighbors",
+    #"Linear SVM",
     "Random Forest",
     #"RBF SVM",
     #"Gaussian Process",
     #"Decision Tree",
     #"Neural Net",
     #"AdaBoost",
-    "Naive Bayes",
+    #"Naive Bayes",
     #"QDA"
 ]
 
 CLASSIFIERS = [
-    KNeighborsClassifier(3),
-    SVC(kernel="linear", C=0.025),
+    #KNeighborsClassifier(3),
+    #SVC(kernel="linear", C=0.025),
     RandomForestClassifier(max_depth=5, n_estimators=10, max_features=1),
     #SVC(gamma=2, C=1),
     #GaussianProcessClassifier(1.0 * RBF(1.0)),
     #DecisionTreeClassifier(max_depth=5),
     #MLPClassifier(alpha=1, max_iter=1000),
     #AdaBoostClassifier(),
-    GaussianNB(),
+    #GaussianNB(),
     #QuadraticDiscriminantAnalysis(),
 ]
 scoring = {
@@ -59,7 +59,7 @@ scoring = {
            'roc_auc': make_scorer(roc_auc_score)
           }
 
-def compare_CLASSIFIERS(src: Path, target_index: int, sep: str) -> None:
+def compare_classifiers(src: Path, target_index: int, sep: str) -> None:
     '''
     Compares classifiers by their performance on given data.
     Parameters have default values.
@@ -115,7 +115,7 @@ def find_optimal_model(data: np.array, target: np.array) -> None:
         except KeyboardInterrupt:
             sys.exit(0)
     data_train, data_test, target_train, target_test = train_test_split(data, target, random_state=42)
-    best_score = 0.0
+    best_score = -1e3
     best_params = None
     best_model = None
     index = None
@@ -124,11 +124,11 @@ def find_optimal_model(data: np.array, target: np.array) -> None:
                                                  param_distributions=pdist[NAMES[i].strip().lower()],
                                                  n_iter=10,
                                                  cv=5,
-                                                 scoring=metric,
+                                                 scoring=scoring[metric],
                                                  verbose=1)
         model_random_search.fit(data_train, target_train)
         score = model_random_search.score(data_test, target_test)
-        print(f"The test {metric} score of the best {NAMES[i].upper()} model is {score:.2f}")
+        print(f"The test {metric} score of the best {NAMES[i].upper()} model is {score:.5f}")
         if score > best_score:
             best_score = score
             best_model = NAMES[i].lower()
@@ -140,10 +140,11 @@ def find_optimal_model(data: np.array, target: np.array) -> None:
     column_results = [f"param_{p}" for p in pdist[best_model].keys()]
     column_results += ["mean_test_score", "std_test_score", "rank_test_score"]
     cv_results = pd.DataFrame(model_random_search.cv_results_)
+    #print(column_results)
     cv_results = cv_results[column_results].sort_values("mean_test_score", ascending=False)
     cv_results = cv_results.rename(shorten_param, axis=1)
     cv_results = cv_results.set_index("rank_test_score")
-    print(cv_results+'\n')
+    #print(cv_results,'\n')
     print('Best parameters are:')
     pprint(best_params)
 
@@ -194,5 +195,5 @@ if __name__ == '__main__':
     src = Path(dags['source'])
     tix = dags['target']
     sep = dags['sep']
-    compare_CLASSIFIERS(src, tix, sep)
+    compare_classifiers(src, tix, sep)
 
