@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 from collections import defaultdict
 from pathlib import Path
+from sklearn.pipeline import Pipeline
 from sklearn.model_selection import train_test_split
 from sklearn.model_selection import cross_validate
 from sklearn.model_selection import KFold
@@ -27,28 +28,28 @@ from settings import pdist
 from pprint import pprint
 
 NAMES = [
-    #"Nearest Neighbors",
-    #"Linear SVM",
-    "Random Forest",
+    "Nearest Neighbors",
+    "Linear SVM",
+    #"Random Forest",
     #"RBF SVM",
     #"Gaussian Process",
-    #"Decision Tree",
+    "Decision Tree",
     #"Neural Net",
     #"AdaBoost",
-    #"Naive Bayes",
+    "Naive Bayes",
     #"QDA"
 ]
 
 CLASSIFIERS = [
-    #KNeighborsClassifier(3),
-    #SVC(kernel="linear", C=0.025),
-    RandomForestClassifier(max_depth=5, n_estimators=10, max_features=1),
+    KNeighborsClassifier(),
+    SVC(),
+    #RandomForestClassifier(max_depth=5, n_estimators=10, max_features=1),
     #SVC(gamma=2, C=1),
     #GaussianProcessClassifier(1.0 * RBF(1.0)),
-    #DecisionTreeClassifier(max_depth=5),
+    DecisionTreeClassifier(),
     #MLPClassifier(alpha=1, max_iter=1000),
     #AdaBoostClassifier(),
-    #GaussianNB(),
+    GaussianNB(),
     #QuadraticDiscriminantAnalysis(),
 ]
 scoring = {
@@ -116,8 +117,8 @@ def find_optimal_model(data: np.array, target: np.array) -> None:
             sys.exit(0)
     data_train, data_test, target_train, target_test = train_test_split(data, target, random_state=42)
     best_score = -1e3
-    best_params = None
-    best_model = None
+    best_model_name = None
+    best_search_model = None
     index = None
     for i, clf in enumerate(CLASSIFIERS):
         model_random_search = RandomizedSearchCV(clf,
@@ -131,22 +132,23 @@ def find_optimal_model(data: np.array, target: np.array) -> None:
         print(f"The test {metric} score of the best {NAMES[i].upper()} model is {score:.5f}")
         if score > best_score:
             best_score = score
-            best_model = NAMES[i].lower()
-            best_params = model_random_search.best_params_
+            best_model_name = NAMES[i].lower()
+            best_search_model = model_random_search
             index = i
     print()
-    print(f'Best model is {best_model.upper()}\n')
+    print(f'Best model is {best_model_name.upper()}\n')
     # get the parameter NAMES
-    column_results = [f"param_{p}" for p in pdist[best_model].keys()]
+    column_results = [f"param_{p}" for p in pdist[best_model_name].keys()]
     column_results += ["mean_test_score", "std_test_score", "rank_test_score"]
-    cv_results = pd.DataFrame(model_random_search.cv_results_)
+    print(best_search_model.cv_results_)
+    cv_results = pd.DataFrame(best_search_model.cv_results_)
     #print(column_results)
     cv_results = cv_results[column_results].sort_values("mean_test_score", ascending=False)
     cv_results = cv_results.rename(shorten_param, axis=1)
     cv_results = cv_results.set_index("rank_test_score")
     #print(cv_results,'\n')
     print('Best parameters are:')
-    pprint(best_params)
+    pprint(best_search_model.best_params_)
 
 def shorten_param(param_name: str) -> str:
     '''
