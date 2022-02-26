@@ -21,4 +21,8 @@ Among optional arguments are:
 - -t, --target: set index of target column
 - -h, --help: show help message and exit
 
-Running ```./bench.py FILENAME``` script will show up table contaning comparison of classifiers performance given default parameters. After table output user is prompted whether to input metric to sort classifiers or to proceed to best model and parameters search process. After choosing `proceed` user is prompted to input desired metric for which best model seeking is to be processed.
+Running ```./bench.py FILENAME``` script will show up table contaning comparison of classifiers performance given default parameters. After table output user is prompted whether to input metric to sort classifiers or to proceed to best model and parameters search process throwing following message: `Enter column name to order classifiers. Press [p] to optimal model search, [Ctrl+c] to exit`. 
+After choosing `proceed` user is prompted to input desired metric with message: `Choose metric from ['accuracy', 'precision', 'recall', 'f1', 'roc_auc']. Press [Ctrl+c] to exit`.
+
+## Usefull information
+In order to find best parameters RandomizedSearchCV is used. Bounds of hyperparameters can be set in settings.py module.
