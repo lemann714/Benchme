@@ -1,0 +1,1 @@
+{"build": "py39_0", "build_number": 0, "depends": ["python >=3.9,<3.10.0a0"], "name": "benchme", "subdir": "linux-64", "timestamp": 1645960278845, "version": "1.0.0", "size": 27111, "md5": "5d393857bfb96b9d965806990b7ceb32", "sha256": "9586fbcb5073a738de785de4973286177d26e84e677bacbf8bc003b4f7c90b23"}

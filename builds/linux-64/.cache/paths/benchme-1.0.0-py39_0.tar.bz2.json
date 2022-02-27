@@ -1,0 +1,17 @@
+{
+  "paths": [
+    {
+      "_path": "lib/python3.9/site-packages/benchme-1.0.0-py3.9.egg",
+      "path_type": "hardlink",
+      "sha256": "801f59c2547a94ea4a7c441992180b553cd6f4bdb28e546158240cbd8b4e1fab",
+      "size_in_bytes": 9755
+    },
+    {
+      "_path": "lib/python3.9/site-packages/benchme.pth",
+      "path_type": "hardlink",
+      "sha256": "59643d773cd0ce3a73207eaaef2422ddc3759d66b3e3ab01686a951ff0753c2d",
+      "size_in_bytes": 26
+    }
+  ],
+  "paths_version": 1
+}
