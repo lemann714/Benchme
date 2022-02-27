@@ -11,17 +11,12 @@ from sklearn.model_selection import cross_validate
 from sklearn.model_selection import KFold
 from sklearn.model_selection import RandomizedSearchCV
 from sklearn.preprocessing import StandardScaler
-from sklearn.neural_network import MLPClassifier
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.svm import SVC
-from sklearn.gaussian_process import GaussianProcessClassifier
-from sklearn.gaussian_process.kernels import RBF
 from sklearn.tree import DecisionTreeClassifier
-from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier
 from sklearn.naive_bayes import GaussianNB
-from sklearn.discriminant_analysis import QuadraticDiscriminantAnalysis
 from sklearn.metrics import make_scorer
-from sklearn.metrics import roc_auc_score, accuracy_score, precision_score, recall_score, f1_score
+from sklearn.metrics import roc_auc_score, accuracy_score, recall_score, f1_score
 from argparse import ArgumentParser
 from exception import ArgumentException
 from settings import pdist
@@ -30,31 +25,19 @@ from pprint import pprint
 NAMES = [
     "Nearest Neighbors",
     "Linear SVM",
-    #"Random Forest",
-    #"RBF SVM",
-    #"Gaussian Process",
     "Decision Tree",
-    #"Neural Net",
-    #"AdaBoost",
     "Naive Bayes",
-    #"QDA"
 ]
 
 CLASSIFIERS = [
     KNeighborsClassifier(),
     SVC(),
-    #RandomForestClassifier(max_depth=5, n_estimators=10, max_features=1),
-    #SVC(gamma=2, C=1),
-    #GaussianProcessClassifier(1.0 * RBF(1.0)),
     DecisionTreeClassifier(),
-    #MLPClassifier(alpha=1, max_iter=1000),
-    #AdaBoostClassifier(),
     GaussianNB(),
-    #QuadraticDiscriminantAnalysis(),
 ]
-scoring = {
+
+SCORING = {
            'accuracy': make_scorer(accuracy_score),
-           'precision': make_scorer(precision_score),
            'recall': make_scorer(recall_score),
            'f1': make_scorer(f1_score),
            'roc_auc': make_scorer(roc_auc_score)
@@ -74,29 +57,21 @@ def compare_classifiers(src: Path, target_index: int, sep: str) -> None:
     X = dataframe.drop(dataframe.columns[target_index], axis=1).values
     #seed ensures that each classifier (clf) cross-validated in the same way
     cv_seed = 2022
-
-    #url = "https://raw.githubusercontent.com/jbrownlee/Datasets/master/pima-indians-diabetes.data.csv"
-    #col_NAMES = ['preg', 'plas', 'pres', 'skin', 'test', 'mass', 'pedi', 'age', 'class']
-    #dataframe = pd.read_csv(url, NAMES=col_NAMES)
-    #array = dataframe.values
-    #X = array[:,0:8]
-    #Y = array[:,8]
-
     X = StandardScaler().fit_transform(X)
 
+    print('Benchmarking classifiers with default parameters...')
     dict_scores = defaultdict(list)
     for name, clf in zip(NAMES, CLASSIFIERS):
         print(f'Estimating {name} performance...')
         kfold = KFold(n_splits=7, shuffle=True, random_state=cv_seed)
-        scores = cross_validate(clf, X, Y, cv=kfold, scoring=scoring)
-        #clf.fit(x_train, y_train)
-        #score = clf.score(x_test, y_test)
+        scores = cross_validate(clf, X, Y, cv=kfold, scoring=SCORING)
         dict_scores['Classifier'].append(name)
         for metric in scores.keys():
             dict_scores[metric].append(scores[metric].mean())
     table_scores = pd.DataFrame(dict_scores, columns=scores.keys())
     table_scores.insert(0, 'CLASSIFIERS', pd.Series(NAMES, index=table_scores.index))
-    print(table_scores)
+    print()
+    print(table_scores,'\n')
     sort_df(table_scores)
     find_optimal_model(X, Y)
 
@@ -109,13 +84,13 @@ def find_optimal_model(data: np.array, target: np.array) -> None:
     target: labels array.
     '''
     metric = None
-    avmetrics = list(scoring.keys())
+    avmetrics = list(SCORING.keys())
     while metric not in avmetrics:
         try:
             metric = input(f"Choose metric from {avmetrics}. Press [Ctrl+c] to exit\n>>> ").strip()
         except KeyboardInterrupt:
             sys.exit(0)
-    data_train, data_test, target_train, target_test = train_test_split(data, target, random_state=42)
+    data_train, data_test, target_train, target_test = train_test_split(data, target, test_size=0.4, random_state=42)
     best_score = -1e3
     best_model_name = None
     best_search_model = None
@@ -125,7 +100,7 @@ def find_optimal_model(data: np.array, target: np.array) -> None:
                                                  param_distributions=pdist[NAMES[i].strip().lower()],
                                                  n_iter=10,
                                                  cv=5,
-                                                 scoring=scoring[metric],
+                                                 scoring=SCORING[metric],
                                                  verbose=1)
         model_random_search.fit(data_train, target_train)
         score = model_random_search.score(data_test, target_test)
@@ -137,16 +112,12 @@ def find_optimal_model(data: np.array, target: np.array) -> None:
             index = i
     print()
     print(f'Best model is {best_model_name.upper()}\n')
-    # get the parameter NAMES
     column_results = [f"param_{p}" for p in pdist[best_model_name].keys()]
     column_results += ["mean_test_score", "std_test_score", "rank_test_score"]
-    print(best_search_model.cv_results_)
     cv_results = pd.DataFrame(best_search_model.cv_results_)
-    #print(column_results)
     cv_results = cv_results[column_results].sort_values("mean_test_score", ascending=False)
     cv_results = cv_results.rename(shorten_param, axis=1)
-    cv_results = cv_results.set_index("rank_test_score")
-    #print(cv_results,'\n')
+    print(cv_results,'\n')
     print('Best parameters are:')
     pprint(best_search_model.best_params_)
 
@@ -157,8 +128,8 @@ def shorten_param(param_name: str) -> str:
 
     param_name: parameter of a classifier.
     '''
-    if "__" in param_name:
-        return param_name.rsplit("__", 1)[1]
+    if "param" in param_name:
+        return param_name.split('_')[1]
     return param_name
 
 def sort_df(df: pd.DataFrame) -> None:
@@ -182,7 +153,7 @@ def sort_df(df: pd.DataFrame) -> None:
             print(df)
             print()
         except KeyError:
-            print(f'Wrong column name. Choose from {list(df.columns)}')
+            print(f'Wrong column name. Choose from {list(df.columns)[1:]}\n')
         scol = read()
 
 ########################### argparser functionality part ###############################
