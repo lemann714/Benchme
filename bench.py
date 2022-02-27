@@ -159,8 +159,8 @@ def sort_df(df: pd.DataFrame) -> None:
 ########################### argparser functionality part ###############################
 cli = ArgumentParser(description='Performs benchmarking of binary classifiers on particular data')
 cli.add_argument('source', type=str, help='CSV-data')
-cli.add_argument('--target', '-t', type=int, default=-1, help="Index of target column")
-cli.add_argument('--sep', '-s', type=str, default=',', help="Columns separator symbol")
+cli.add_argument('--target', '-t', type=int, default=-1, help="Index of target column. -1 is used as default")
+cli.add_argument('--sep', '-s', type=str, default=',', help="Columns separator symbol. Comma is used as default.")
 
 if __name__ == '__main__':
     args = cli.parse_args()
